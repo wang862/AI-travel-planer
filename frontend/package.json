@@ -15,7 +15,8 @@
     "@supabase/supabase-js": "^2.22.0",
     "axios": "^1.4.0",
     "leaflet": "^1.9.4",
-    "react-leaflet": "^4.2.1"
+    "react-leaflet": "^4.2.1",
+    "@amap/amap-jsapi-loader": "^1.0.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.3",

@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js')
 const dotenv = require('dotenv')
 const aiService = require('./aiService')
+const amapService = require('./amapService')
 
 dotenv.config({ path: '../config/.env' })
 
@@ -195,21 +196,57 @@ const tripService = {
   async generateItinerary(destination, days, budget, preferences = '') {
     try {
       // 构建提示词
-      const prompt = `为${destination}创建一个${days}天的旅行计划，预算为${budget}元。${preferences ? '特殊要求：' + preferences : ''}。请以JSON格式返回，包含每天的活动安排，每个活动包含名称、时间、描述和地点信息。`
+      const prompt = `为${destination}创建一个${days}天的旅行计划，预算为${budget}元。${preferences ? '特殊要求：' + preferences : ''}。请以JSON格式返回，包含每天的活动安排，每个活动包含名称、时间、描述和地点信息。格式如下：
+      [
+        {
+          "day": 1,
+          "activities": [
+            {
+              "name": "活动名称",
+              "time": "09:00-12:00",
+              "description": "活动描述",
+              "location": "具体地点名称"
+            }
+          ]
+        }
+      ]`
       
       // 调用 AI 服务生成行程
-      const response = await aiService.generateTravelItinerary(prompt)
+      const response = await aiService.generateTravelItinerary(destination, '', '', preferences)
       
       // 解析响应，确保是有效的JSON
       let itineraryData = null
       try {
-        // 尝试直接解析响应
-        itineraryData = JSON.parse(response)
+        // 检查响应格式
+        if (response.days && Array.isArray(response.days)) {
+          // 适配 days 格式的响应
+          itineraryData = response.days.map(day => ({
+            day: day.day,
+            activities: day.activities
+          }))
+        } else if (Array.isArray(response)) {
+          // 直接使用数组格式
+          itineraryData = response
+        } else {
+          throw new Error('AI返回的行程格式不正确')
+        }
       } catch (parseError) {
+        console.error('解析AI响应失败:', parseError)
         // 如果解析失败，尝试提取JSON部分
-        const jsonMatch = response.match(/\{[\s\S]*\}/)
+        const jsonStr = JSON.stringify(response)
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
         if (jsonMatch) {
-          itineraryData = JSON.parse(jsonMatch[0])
+          try {
+            const parsed = JSON.parse(jsonMatch[0])
+            if (parsed.days && Array.isArray(parsed.days)) {
+              itineraryData = parsed.days.map(day => ({
+                day: day.day,
+                activities: day.activities
+              }))
+            }
+          } catch (e) {
+            throw new Error('无法解析AI响应为有效的行程格式')
+          }
         } else {
           throw new Error('无法解析AI响应为JSON格式')
         }
@@ -219,12 +256,28 @@ const tripService = {
       if (!Array.isArray(itineraryData)) {
         throw new Error('AI返回的行程格式不正确')
       }
-      
-      return itineraryData
+
+      // 尝试使用高德地图API为行程添加地理坐标
+      try {
+        const enrichedItinerary = await amapService.enrichItineraryWithLocations(itineraryData)
+        return enrichedItinerary
+      } catch (amapError) {
+        console.warn('高德地图服务调用失败，使用原始行程:', amapError)
+        // 如果地理编码失败，返回原始行程
+        return itineraryData
+      }
     } catch (error) {
       console.error('生成行程失败:', error)
       // 如果 AI 服务失败，返回默认行程
-      return this.getDefaultItinerary(days)
+      const defaultItinerary = this.getDefaultItinerary(days)
+      
+      // 尝试为默认行程添加位置信息
+      try {
+        return await amapService.enrichItineraryWithLocations(defaultItinerary)
+      } catch (amapError) {
+        console.warn('为默认行程添加位置信息失败:', amapError)
+        return defaultItinerary
+      }
     }
   },
   
@@ -237,20 +290,60 @@ const tripService = {
       
       if (i === 1) {
         dayActivities.push(
-          { name: '抵达目的地', time: '全天', description: '抵达目的地，入住酒店，休息调整时差' },
-          { name: '当地美食体验', time: '晚上', description: '品尝当地特色美食' }
+          { 
+            name: '抵达目的地', 
+            time: '全天', 
+            description: '抵达目的地，入住酒店，休息调整时差',
+            location: null
+          },
+          { 
+            name: '当地美食体验', 
+            time: '晚上', 
+            description: '品尝当地特色美食',
+            location: null
+          }
         )
       } else if (i === days) {
         dayActivities.push(
-          { name: '自由活动', time: '上午', description: '自由活动，可购物或休息' },
-          { name: '返程', time: '下午', description: '整理行李，前往机场/车站返程' }
+          { 
+            name: '自由活动', 
+            time: '上午', 
+            description: '自由活动，可购物或休息',
+            location: null
+          },
+          { 
+            name: '返程', 
+            time: '下午', 
+            description: '整理行李，前往机场/车站返程',
+            location: null
+          }
         )
       } else {
         dayActivities.push(
-          { name: '景点游览', time: '09:00-12:00', description: '游览当地主要景点' },
-          { name: '午餐', time: '12:00-13:30', description: '品尝当地特色午餐' },
-          { name: '文化体验', time: '14:00-17:00', description: '参观博物馆或体验当地文化' },
-          { name: '晚餐', time: '18:00-20:00', description: '享用晚餐' }
+          { 
+            name: '景点游览', 
+            time: '09:00-12:00', 
+            description: '游览当地主要景点',
+            location: null
+          },
+          { 
+            name: '午餐', 
+            time: '12:00-13:30', 
+            description: '品尝当地特色午餐',
+            location: null
+          },
+          { 
+            name: '文化体验', 
+            time: '14:00-17:00', 
+            description: '参观博物馆或体验当地文化',
+            location: null
+          },
+          { 
+            name: '晚餐', 
+            time: '18:00-20:00', 
+            description: '享用晚餐',
+            location: null
+          }
         )
       }
       
