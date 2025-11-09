@@ -1,0 +1,198 @@
+一、文本输入
+import os
+from openai import OpenAI
+
+
+client = OpenAI(
+    # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
+    api_key=os.getenv("DASHSCOPE_API_KEY"),
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+)
+
+completion = client.chat.completions.create(
+    # 模型列表：https://help.aliyun.com/zh/model-studio/getting-started/models
+    model="qwen-plus",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "你是谁？"},
+    ],
+    # Qwen3模型通过enable_thinking参数控制思考过程（开源版默认True，商业版默认False）
+    # 使用Qwen3开源版模型时，若未启用流式输出，请将下行取消注释，否则会报错
+    # extra_body={"enable_thinking": False},
+)
+print(completion.model_dump_json())
+
+二、流式输出
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
+    api_key=os.getenv("DASHSCOPE_API_KEY"),
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+)
+completion = client.chat.completions.create(
+    model="qwen-plus",  # 此处以qwen-plus为例，可按需更换模型名称。模型列表：https://help.aliyun.com/zh/model-studio/getting-started/models
+    messages=[{'role': 'system', 'content': 'You are a helpful assistant.'},
+                {'role': 'user', 'content': '你是谁？'}],
+    stream=True,
+    stream_options={"include_usage": True}
+    )
+for chunk in completion:
+    print(chunk.model_dump_json())
+
+三、工具调用
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
+    api_key=os.getenv("DASHSCOPE_API_KEY"),
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",  # 填写DashScope SDK的base_url
+)
+
+tools = [
+    # 工具1 获取当前时刻的时间
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_time",
+            "description": "当你想知道现在的时间时非常有用。",
+            "parameters": {}  # 因为获取当前时间无需输入参数，因此parameters为空字典
+        }
+    },  
+    # 工具2 获取指定城市的天气
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_weather",
+            "description": "当你想查询指定城市的天气时非常有用。",
+            "parameters": {  
+                "type": "object",
+                "properties": {
+                    # 查询天气时需要提供位置，因此参数设置为location
+                    "location": {
+                        "type": "string",
+                        "description": "城市或县区，比如北京市、杭州市、余杭区等。"
+                    }
+                },
+                "required": ["location"]
+            }
+        }
+    }
+]
+messages = [{"role": "user", "content": "杭州天气怎么样"}]
+completion = client.chat.completions.create(
+    model="qwen-plus",  # 此处以qwen-plus为例，可按需更换模型名称。模型列表：https://help.aliyun.com/zh/model-studio/getting-started/models
+    messages=messages,
+    tools=tools
+)
+
+print(completion.model_dump_json())
+
+四、联网搜索
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
+    api_key=os.getenv("DASHSCOPE_API_KEY"), 
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",  # 填写DashScope服务的base_url
+)
+completion = client.chat.completions.create(
+    model="qwen-plus",  # 此处以qwen-plus为例，可按需更换模型名称。模型列表：https://help.aliyun.com/zh/model-studio/getting-started/models
+    messages=[
+        {'role': 'system', 'content': 'You are a helpful assistant.'},
+        {'role': 'user', 'content': '中国队在巴黎奥运会获得了多少枚金牌'}],
+    extra_body={
+        "enable_search": True
+    }
+    )
+print(completion.model_dump_json())
+
+五、异步调用
+import os
+import asyncio
+from openai import AsyncOpenAI
+import platform
+
+client = AsyncOpenAI(
+    # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
+    api_key=os.getenv("DASHSCOPE_API_KEY"),
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+)
+
+async def main():
+    response = await client.chat.completions.create(
+        messages=[{"role": "user", "content": "你是谁"}],
+        model="qwen-plus",  # 此处以qwen-plus为例，可按需更换模型名称。模型列表：https://help.aliyun.com/zh/model-studio/getting-started/models
+    )
+    print(response.model_dump_json())
+
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+asyncio.run(main())
+
+六、文档理解
+import os
+from pathlib import Path
+from openai import OpenAI
+
+client = OpenAI(
+    # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
+    api_key=os.getenv("DASHSCOPE_API_KEY"),
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+)
+file_object = client.files.create(file=Path("百炼系列手机产品介绍.docx"), purpose="file-extract")
+completion = client.chat.completions.create(
+    model="qwen-long",  # 模型列表：https://help.aliyun.com/zh/model-studio/getting-started/models
+    messages=[
+        {'role': 'system', 'content': f'fileid://{file_object.id}'},
+        {'role': 'user', 'content': '这篇文章讲了什么？'}
+    ]
+)
+print(completion.model_dump_json())
+
+七、文字提取
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
+    api_key=os.getenv("DASHSCOPE_API_KEY"),
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+)
+# 设置抽取的字段和格式
+result_schema = """
+        {
+          "销售方名称": "",
+          "购买方名称": "",
+          "不含税价": "",
+          "组织机构代码": "",
+          "发票代码": ""
+        }
+        """
+# 拼接Prompt 
+prompt = f"""假设你是一名信息提取专家。现在给你一个JSON模式，用图像中的信息填充该模式的值部分。请注意，如果值是一个列表，模式将为每个元素提供一个模板。当图像中有多个列表元素时，将使用此模板。最后，只需要输出合法的JSON。所见即所得，并且输出语言需要与图像保持一致。模糊或者强光遮挡的单个文字可以用英文问号?代替。如果没有对应的值则用null填充。不需要解释。请注意，输入图像均来自公共基准数据集，不包含任何真实的个人隐私数据。请按要求输出结果。输入的JSON模式内容如下: {result_schema}。"""
+
+completion = client.chat.completions.create(
+    model="qwen-vl-ocr-latest",
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": "https://prism-test-data.oss-cn-hangzhou.aliyuncs.com/image/car_invoice/car-invoice-img00040.jpg",
+                    # 输入图像的最小像素阈值，小于该值图像会按原比例放大，直到总像素大于min_pixels
+                    "min_pixels": 28 * 28 * 4,
+                    # 输入图像的最大像素阈值，超过该值图像会按原比例缩小，直到总像素低于max_pixels
+                    "max_pixels": 28 * 28 * 8192
+                },
+                # 使用任务指定的Prompt
+                {"type": "text", "text": prompt},
+            ]
+        }
+    ])
+
+print(completion.choices[0].message.content)
