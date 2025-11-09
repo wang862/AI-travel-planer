@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>讯飞语音识别测试Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5',
+                        secondary: '#7C3AED',
+                        accent: '#06B6D4',
+                        success: '#10B981',
+                        warning: '#F59E0B',
+                        danger: '#EF4444',
+                        dark: '#1E293B',
+                        light: '#F8FAFC'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .gradient-bg {
+                background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+            }
+            .card-hover {
+                transition: all 0.3s ease;
+            }
+            .card-hover:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            }
+            .pulse-animation {
+                animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+            @keyframes pulse {
+                0%, 100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.7;
+                }
+            }
+        }
+    </style>
+</head>
+<body class="bg-light min-h-screen font-sans text-dark">
+    <!-- 顶部导航 -->
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <i class="fa fa-microphone text-2xl"></i>
+                    <h1 class="text-xl md:text-2xl font-bold">讯飞语音识别测试Demo</h1>
+                </div>
+                <div class="hidden md:flex items-center space-x-4">
+                    <span class="text-sm opacity-80">
+                        <i class="fa fa-server mr-1"></i> 服务状态: <span id="status-indicator" class="inline-block w-2 h-2 bg-success rounded-full mx-1"></span>
+                        <span id="status-text">正常运行</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要内容 -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- 说明卡片 -->
+        <div class="mb-8 bg-white rounded-xl shadow-md p-6 card-hover">
+            <div class="flex items-start">
+                <div class="bg-blue-100 p-3 rounded-lg mr-4">
+                    <i class="fa fa-info-circle text-primary text-xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold mb-2">使用说明</h2>
+                    <p class="text-gray-600 mb-4">
+                        本Demo用于测试讯飞语音识别API功能。您可以上传WAV、MP3、PCM或M4A格式的音频文件（最大10MB），系统将自动识别并返回文本结果。
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-blue-50 p-3 rounded-lg">
+                            <i class="fa fa-check-circle text-primary mr-1"></i>
+                            <span class="text-sm">支持多种音频格式</span>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded-lg">
+                            <i class="fa fa-check-circle text-primary mr-1"></i>
+                            <span class="text-sm">中文语音识别优化</span>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded-lg">
+                            <i class="fa fa-check-circle text-primary mr-1"></i>
+                            <span class="text-sm">实时进度显示</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 上传区域 -->
+        <div class="mb-8 bg-white rounded-xl shadow-md p-6 transition-all duration-300" id="upload-container">
+            <h2 class="text-xl font-semibold mb-4">上传音频文件</h2>
+            
+            <!-- 拖放区域 -->
+            <div id="drop-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors duration-300">
+                <i class="fa fa-cloud-upload text-4xl text-gray-400 mb-4"></i>
+                <p class="text-gray-500 mb-2">拖放音频文件到此处，或点击选择文件</p>
+                <p class="text-sm text-gray-400">支持 WAV, MP3, PCM, M4A 格式（最大10MB）</p>
+                <input type="file" id="file-input" accept=".wav,.mp3,.pcm,.m4a" class="hidden">
+                <button id="select-file-btn" class="mt-4 bg-primary hover:bg-primary/90 text-white py-2 px-6 rounded-lg transition-all duration-300">
+                    <i class="fa fa-file-audio-o mr-2"></i>选择音频文件
+                </button>
+            </div>
+
+            <!-- 选中的文件信息 -->
+            <div id="file-info" class="mt-4 hidden">
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div class="flex items-center">
+                        <i class="fa fa-file-audio-o text-primary mr-3"></i>
+                        <div>
+                            <p id="file-name" class="font-medium"></p>
+                            <p id="file-size" class="text-sm text-gray-500"></p>
+                        </div>
+                    </div>
+                    <button id="remove-file" class="text-gray-400 hover:text-danger transition-colors duration-300">
+                        <i class="fa fa-times-circle text-lg"></i>
+                    </button>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div class="mt-4 flex justify-end">
+                    <button id="recognize-btn" class="bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-white py-2 px-6 rounded-lg transition-all duration-300 flex items-center">
+                        <i class="fa fa-microphone-slash mr-2"></i>
+                        开始语音识别
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 加载状态 -->
+        <div id="loading-container" class="mb-8 bg-white rounded-xl shadow-md p-6 hidden">
+            <div class="text-center">
+                <div class="inline-block p-4 rounded-full bg-blue-50 mb-4">
+                    <i class="fa fa-circle-o-notch fa-spin text-2xl text-primary"></i>
+                </div>
+                <h3 class="text-lg font-medium mb-2">正在进行语音识别...</h3>
+                <p class="text-gray-500" id="loading-message">正在连接讯飞API，请稍候...</p>
+                <div class="mt-4 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-gradient-to-r from-primary to-secondary pulse-animation rounded-full" style="width: 0%"></div>
+                </div>
+                <p class="mt-2 text-sm text-gray-500" id="progress-text">0%</p>
+            </div>
+        </div>
+
+        <!-- 结果区域 -->
+        <div id="result-container" class="mb-8 bg-white rounded-xl shadow-md p-6 hidden">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold">识别结果</h2>
+                <div class="flex items-center text-sm text-gray-500">
+                    <i class="fa fa-clock-o mr-1"></i>
+                    <span id="processing-time"></span>
+                </div>
+            </div>
+            
+            <div id="result-text" class="min-h-[100px] p-4 bg-gray-50 rounded-lg border border-gray-200 mb-4 whitespace-pre-wrap"></div>
+            
+            <div class="flex justify-end space-x-3">
+                <button id="copy-btn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded-lg transition-all duration-300 flex items-center">
+                    <i class="fa fa-copy mr-2"></i>
+                    复制结果
+                </button>
+                <button id="new-upload-btn" class="bg-primary hover:bg-primary/90 text-white py-2 px-4 rounded-lg transition-all duration-300 flex items-center">
+                    <i class="fa fa-upload mr-2"></i>
+                    重新上传
+                </button>
+            </div>
+        </div>
+
+        <!-- 错误信息 -->
+        <div id="error-container" class="mb-8 bg-red-50 border border-red-200 rounded-xl p-4 hidden">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <i class="fa fa-exclamation-circle text-danger text-xl"></i>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-danger font-medium">操作失败</h3>
+                    <div class="mt-2 text-red-700" id="error-message">
+                        <p>发生错误，请稍后重试。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-6">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <p class="text-sm opacity-80">© 2024 讯飞语音识别测试Demo</p>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="#" class="text-sm opacity-80 hover:opacity-100 transition-opacity duration-300">
+                        <i class="fa fa-question-circle mr-1"></i>帮助文档
+                    </a>
+                    <a href="#" class="text-sm opacity-80 hover:opacity-100 transition-opacity duration-300">
+                        <i class="fa fa-github mr-1"></i>GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // DOM元素
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+        const selectFileBtn = document.getElementById('select-file-btn');
+        const fileInfo = document.getElementById('file-info');
+        const fileName = document.getElementById('file-name');
+        const fileSize = document.getElementById('file-size');
+        const removeFile = document.getElementById('remove-file');
+        const recognizeBtn = document.getElementById('recognize-btn');
+        const uploadContainer = document.getElementById('upload-container');
+        const loadingContainer = document.getElementById('loading-container');
+        const loadingMessage = document.getElementById('loading-message');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const resultContainer = document.getElementById('result-container');
+        const resultText = document.getElementById('result-text');
+        const processingTime = document.getElementById('processing-time');
+        const copyBtn = document.getElementById('copy-btn');
+        const newUploadBtn = document.getElementById('new-upload-btn');
+        const errorContainer = document.getElementById('error-container');
+        const errorMessage = document.getElementById('error-message');
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+
+        // 存储选中的文件
+        let selectedFile = null;
+
+        // 初始化：检查服务状态
+        function checkServiceStatus() {
+            fetch('/health')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        statusIndicator.className = 'inline-block w-2 h-2 bg-success rounded-full mx-1';
+                        statusText.textContent = '正常运行';
+                    } else {
+                        statusIndicator.className = 'inline-block w-2 h-2 bg-warning rounded-full mx-1';
+                        statusText.textContent = '状态未知';
+                    }
+                })
+                .catch(() => {
+                    statusIndicator.className = 'inline-block w-2 h-2 bg-danger rounded-full mx-1';
+                    statusText.textContent = '服务不可用';
+                });
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 显示文件信息
+        function showFileInfo(file) {
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileInfo.classList.remove('hidden');
+            dropArea.classList.add('border-primary', 'bg-blue-50');
+        }
+
+        // 隐藏文件信息
+        function hideFileInfo() {
+            selectedFile = null;
+            fileInput.value = '';
+            fileInfo.classList.add('hidden');
+            dropArea.classList.remove('border-primary', 'bg-blue-50');
+        }
+
+        // 显示加载状态
+        function showLoading() {
+            uploadContainer.classList.add('hidden');
+            errorContainer.classList.add('hidden');
+            loadingContainer.classList.remove('hidden');
+            
+            // 模拟进度更新
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 2;
+                if (progress > 90) {
+                    clearInterval(progressInterval);
+                    return;
+                }
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${progress}%`;
+            }, 100);
+        }
+
+        // 显示结果
+        function showResult(text, time) {
+            loadingContainer.classList.add('hidden');
+            resultContainer.classList.remove('hidden');
+            resultText.textContent = text;
+            processingTime.textContent = `处理时间: ${time}秒`;
+            
+            // 平滑滚动到结果区域
+            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // 显示错误
+        function showError(message) {
+            loadingContainer.classList.add('hidden');
+            errorContainer.classList.remove('hidden');
+            errorMessage.textContent = message;
+        }
+
+        // 重置表单
+        function resetForm() {
+            hideFileInfo();
+            resultContainer.classList.add('hidden');
+            errorContainer.classList.add('hidden');
+            uploadContainer.classList.remove('hidden');
+        }
+
+        // 复制结果到剪贴板
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    const originalText = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '<i class="fa fa-check mr-2"></i>已复制';
+                    copyBtn.classList.remove('bg-gray-100', 'hover:bg-gray-200', 'text-gray-700');
+                    copyBtn.classList.add('bg-success', 'hover:bg-success/90', 'text-white');
+                    
+                    setTimeout(() => {
+                        copyBtn.innerHTML = originalText;
+                        copyBtn.classList.remove('bg-success', 'hover:bg-success/90', 'text-white');
+                        copyBtn.classList.add('bg-gray-100', 'hover:bg-gray-200', 'text-gray-700');
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('复制失败:', err);
+                });
+        }
+
+        // 执行语音识别
+        function recognizeSpeech() {
+            if (!selectedFile) return;
+            
+            showLoading();
+            
+            const formData = new FormData();
+            formData.append('audio', selectedFile);
+            
+            loadingMessage.textContent = '正在上传音频文件...';
+            
+            fetch('/api/speech-to-text', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadingMessage.textContent = '识别完成，正在处理结果...';
+                    progressBar.style.width = '100%';
+                    progressText.textContent = '100%';
+                    
+                    // 稍微延迟显示结果，让用户看到完成状态
+                    setTimeout(() => {
+                        showResult(data.text, data.processingTime);
+                    }, 500);
+                } else {
+                    showError(data.error || '语音识别失败');
+                }
+            })
+            .catch(error => {
+                console.error('请求错误:', error);
+                showError('网络错误，请检查连接后重试');
+            });
+        }
+
+        // 事件监听器
+        selectFileBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                showFileInfo(e.target.files[0]);
+            }
+        });
+
+        removeFile.addEventListener('click', hideFileInfo);
+
+        recognizeBtn.addEventListener('click', recognizeSpeech);
+
+        copyBtn.addEventListener('click', () => {
+            copyToClipboard(resultText.textContent);
+        });
+
+        newUploadBtn.addEventListener('click', resetForm);
+
+        // 拖放功能
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            dropArea.classList.add('border-primary', 'bg-blue-50');
+        }
+
+        function unhighlight() {
+            if (!selectedFile) {
+                dropArea.classList.remove('border-primary', 'bg-blue-50');
+            }
+        }
+
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            
+            if (file) {
+                showFileInfo(file);
+            }
+        });
+
+        // 初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            checkServiceStatus();
+            
+            // 定期检查服务状态
+            setInterval(checkServiceStatus, 30000); // 每30秒检查一次
+        });
+    </script>
+</body>
+</html>
