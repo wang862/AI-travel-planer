@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react'
-import { supabase } from '../services/supabaseClient'
+import { supabase, authAPI } from '../services/supabaseClient'
 
 const AuthContext = createContext()
 
@@ -11,8 +11,20 @@ export const AuthProvider = ({ children }) => {
     // 检查用户是否已登录
     const checkUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        setUser(user)
+        // 首先检查本地会话
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          setUser(session.user)
+        } else {
+          // 然后尝试通过API获取用户信息
+          try {
+            const userData = await authAPI.getCurrentUser()
+            setUser(userData)
+          } catch (error) {
+            console.log('用户未登录或会话已过期')
+            setUser(null)
+          }
+        }
       } catch (error) {
         console.error('获取用户信息失败:', error)
       } finally {
@@ -32,13 +44,16 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      })
+      // 使用API登录
+      const response = await authAPI.login(email, password)
       
-      if (error) throw error
-      return data
+      // 同时也在本地设置Supabase会话（为了保持兼容性）
+      if (response.token) {
+        await supabase.auth.setSession({ access_token: response.token })
+      }
+      
+      setUser(response.user || response)
+      return response
     } catch (error) {
       console.error('登录失败:', error)
       throw error
@@ -47,13 +62,11 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (email, password) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password
-      })
+      // 使用API注册
+      const response = await authAPI.register(email, password)
       
-      if (error) throw error
-      return data
+      setUser(response.user || response)
+      return response
     } catch (error) {
       console.error('注册失败:', error)
       throw error
